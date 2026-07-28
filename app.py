@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import Any
+import urllib.request
 
 import joblib
 import numpy as np
@@ -10,6 +11,10 @@ from PIL import Image, UnidentifiedImageError
 MODEL_FILENAME = "lesson06_vision_model.joblib"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
+# 만약 GitHub에 파일을 올리기 어렵다면, 아래 변수에 모델 파일이 업로드된 직접 다운로드 링크(URL)를 입력할 수 있습니다.
+# 예: "https://github.com/사용자이름/저장소명/raw/main/lesson06_vision_model.joblib"
+FALLBACK_MODEL_URL = ""
+
 
 def model_candidates() -> list[Path]:
     """Streamlit Cloud 및 로컬 실행 환경에서 모델을 찾을 후보 경로를 반환한다."""
@@ -18,7 +23,6 @@ def model_candidates() -> list[Path]:
     if configured:
         candidates.append(Path(configured).expanduser())
 
-    # Streamlit Cloud 및 일반적인 로컬 실행 환경 기준 경로들
     candidates.extend(
         [
             Path.cwd() / MODEL_FILENAME,
@@ -38,7 +42,6 @@ def model_candidates() -> list[Path]:
             textbook_root / "outputs" / "day6" / MODEL_FILENAME
         )
 
-    # 순서를 유지하면서 중복 경로를 제거한다.
     return list(dict.fromkeys(path.resolve() for path in candidates))
 
 
@@ -46,6 +49,18 @@ def find_model_path() -> Path:
     for path in model_candidates():
         if path.is_file():
             return path
+            
+    # 로컬 경로에 없다면 URL 다운로드 시도 (설정된 경우)
+    if FALLBACK_MODEL_URL:
+        target_path = Path.cwd() / MODEL_FILENAME
+        try:
+            st.info("원격 저장소에서 모델 파일을 다운로드하는 중입니다...")
+            urllib.request.urlretrieve(FALLBACK_MODEL_URL, target_path)
+            if target_path.is_file():
+                return target_path
+        except Exception:
+            pass
+
     searched = "\n".join(f"- {path}" for path in model_candidates())
     raise FileNotFoundError(
         f"{MODEL_FILENAME}을 찾지 못했습니다.\n검색 위치:\n{searched}"
@@ -194,8 +209,8 @@ def render_app() -> None:
         st.error("저장 모델을 불러오지 못했습니다.")
         st.code(str(error))
         st.info(
-            f"GitHub 저장소 최상위 루트 디렉토리에 `{MODEL_FILENAME}` 파일이 "
-            "정상적으로 업로드되었는지 확인해 주세요."
+            f"GitHub 저장소의 최상위 루트 디렉토리에 `{MODEL_FILENAME}` 파일이 "
+            "존재하는지 확인하거나, 코드 상단의 `FALLBACK_MODEL_URL`에 모델 파일의 직통 다운로드 링크를 입력해 주세요."
         )
         st.stop()
 
@@ -282,7 +297,7 @@ def render_app() -> None:
         st.progress(min(max(defect_probability, 0.0), 1.0))
         st.caption(f"교육용 검토 임계값: {threshold * 100:.1f}%")
 
-        if is_review_candidate:
+        if is_review_coder := is_review_candidate:
             st.error("판정: 불량 검토 후보")
         else:
             st.success("판정: 정상 후보")
