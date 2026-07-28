@@ -147,5 +147,5 @@ with tab2:
     pivot_df = pivot_df.sort_index(ascending=False)
 
     # 포맷팅 적용
-    formatted_pivot = pivot_df.applymap(lambda x: f"{x:,}원")
+   formatted_pivot = pivot_df.map(lambda x: f"{x:,}원")
     st.dataframe(formatted_pivot, use_container_width=True)
