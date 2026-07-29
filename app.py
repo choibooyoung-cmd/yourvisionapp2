@@ -18,7 +18,7 @@ with st.sidebar:
     st.caption("Google Sheets API / Apps Script 연동 대시보드")
     
     # 연결 상태 표시
-    st.success("API Key / Script 연결 완료")
+    st.success("API / Web App 연결 완료")
     
     # 실시간 새로고침 버튼
     if st.button("🔄 데이터 실시간 새로고침", use_container_width=True):
@@ -26,23 +26,24 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
-# 2. Apps Script ID 및 웹 앱 URL 설정
+# 2. Apps Script 웹 앱 URL 설정
 # ==============================================================================
-SCRIPT_ID = "19D3YAV6Gh2adRsQ09wn_yiYpKK9Q1iQCy_KXUNElc9X0cDiE4cYT15om"
-
-# Apps Script 웹 앱 배포 URL (또는 Exec URL)
-# Apps Script에서 '웹 앱으로 배포' 후 생성된 URL 형태로 조회합니다.
-WEB_APP_URL = f"https://script.google.com/macros/s/{SCRIPT_ID}/exec"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx_I_E2tuyBPp8KZm7J5J9xhVYMXdusaCwlYFuop1z9dmz3wNAHDLZ7IfGDy-qvWYXe/exec"
 
 
 @st.cache_data(ttl=60)  # 1분간 캐시 유지
 def load_data_from_script(url: str):
     """Google Apps Script 웹 앱에서 전체 시트 데이터를 JSON으로 불러옵니다."""
     try:
-        response = requests.get(url, timeout=10)
+        # Apps Script 리다이렉션 처리를 위한 allow_redirects=True 설정
+        response = requests.get(url, timeout=15, allow_redirects=True)
+        
         if response.status_code == 200:
-            data = response.json()
-            return data, None
+            try:
+                data = response.json()
+                return data, None
+            except Exception:
+                return None, "응답 데이터를 JSON 형태로 파싱하지 못했습니다. (웹 앱 액세스 권한 '모든 사용자' 설정 확인 필요)"
         else:
             return None, f"HTTP 오류 발생: {response.status_code}"
     except Exception as e:
@@ -52,12 +53,12 @@ def load_data_from_script(url: str):
 raw_data, error_msg = load_data_from_script(WEB_APP_URL)
 
 # ==============================================================================
-# 3. 시트 데이터 추출 및 정형화 (대소문자/공백 무시 유연한 처리)
+# 3. 시트 데이터 추출 및 정형화
 # ==============================================================================
 def get_sheet_dataframe(data_dict, target_name):
     """시트 이름의 대소문자 및 공백 차이를 무시하고 일치하는 시트의 데이터프레임을 반환합니다."""
     if not data_dict or not isinstance(data_dict, dict):
-        return pd.DataFrame()
+        return None
     
     clean_target = target_name.strip().lower()
     
@@ -80,16 +81,16 @@ if raw_data:
     inbound_df = get_sheet_dataframe(raw_data, "inbound")
     outbound_df = get_sheet_dataframe(raw_data, "outbound")
 
-# 에러 메시지 출력 영역
+# 에러 및 시트 미발견 경고 출력 영역
 if error_msg:
     st.error(error_msg)
 else:
     if inventory_df is None:
-        st.error("'inventory' 시트를 불러오지 못했습니다. Apps Script 배포 설정이나 시트 이름을 확인해 주세요.")
+        st.error("'inventory' 시트를 불러오지 못했습니다. 스프레드시트의 시트 탭 이름을 확인해 주세요.")
     if inbound_df is None:
-        st.error("'inbound' 시트를 불러오지 못했습니다. Apps Script 배포 설정이나 시트 이름을 확인해 주세요.")
+        st.error("'inbound' 시트를 불러오지 못했습니다. 스프레드시트의 시트 탭 이름을 확인해 주세요.")
     if outbound_df is None:
-        st.error("'outbound' 시트를 불러오지 못했습니다. Apps Script 배포 설정이나 시트 이름을 확인해 주세요.")
+        st.error("'outbound' 시트를 불러오지 못했습니다. 스프레드시트의 시트 탭 이름을 확인해 주세요.")
 
 # ==============================================================================
 # 4. 대시보드 헤더 및 KPI 요약 카드
@@ -103,10 +104,9 @@ total_items = len(inventory_df) if inventory_df is not None and not inventory_df
 total_inbound = len(inbound_df) if inbound_df is not None and not inbound_df.empty else 0
 total_outbound = len(outbound_df) if outbound_df is not None and not outbound_df.empty else 0
 
-# 안전재고 부족 품목 계산 (컬럼명이 존재할 경우)
+# 안전재고 부족 품목 계산
 low_stock_count = 0
 if inventory_df is not None and not inventory_df.empty:
-    # '현재재고' 및 '안전재고' 컬럼이 있는 경우 계산
     cols = [str(c).strip() for c in inventory_df.columns]
     if "현재재고" in cols and "안전재고" in cols:
         try:
