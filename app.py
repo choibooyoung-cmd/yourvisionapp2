@@ -1,3 +1,15 @@
+import streamlit as st
+import streamlit.components.v1 as components
+
+# 페이지 기본 설정
+st.set_page_config(
+    page_title="ERP 연동 자재 관리 대시보드",
+    page_icon="📦",
+    layout="wide"
+)
+
+# HTML/CSS/JS 대시보드 코드
+html_code = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -229,7 +241,6 @@
 
                 <!-- Charts Section -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Inbound vs Outbound Trend Line Chart -->
                     <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
                             <div>
@@ -243,7 +254,6 @@
                         </div>
                     </div>
 
-                    <!-- Category Stock Distribution Chart -->
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
                             <div>
@@ -257,9 +267,8 @@
                     </div>
                 </div>
 
-                <!-- Recent ERP Automation Logs Summary & Stock Alerts -->
+                <!-- Tables -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Low Stock Urgent Alert Table -->
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex items-center gap-2">
@@ -279,14 +288,11 @@
                                         <th class="p-2.5 text-center">조치 status</th>
                                     </tr>
                                 </thead>
-                                <tbody id="dashboardLowStockBody" class="divide-y divide-slate-100">
-                                    <!-- Dynamic Low Stock Row -->
-                                </tbody>
+                                <tbody id="dashboardLowStockBody" class="divide-y divide-slate-100"></tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Live ERP Sync Log Stream -->
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col">
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex items-center gap-2">
@@ -295,14 +301,12 @@
                             </div>
                             <button onclick="switchTab('logs')" class="text-xs text-blue-600 hover:underline font-semibold">전체 로그 &rarr;</button>
                         </div>
-                        <div id="dashboardLogsStream" class="flex-1 space-y-3 overflow-y-auto max-h-56 pr-1 text-xs scrollbar-slim">
-                            <!-- Dynamic Logs Stream -->
-                        </div>
+                        <div id="dashboardLogsStream" class="flex-1 space-y-3 overflow-y-auto max-h-56 pr-1 text-xs scrollbar-slim"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. TAB: INBOUND (자재 입고) -->
+            <!-- 2. TAB: INBOUND -->
             <div id="tab-content-inbound" class="hidden space-y-6">
                 <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -331,15 +335,13 @@
                                     <th class="p-3 text-center">ERP 전송 상태</th>
                                 </tr>
                             </thead>
-                            <tbody id="inboundTableBody" class="divide-y divide-slate-100">
-                                <!-- Dynamic Inbound History -->
-                            </tbody>
+                            <tbody id="inboundTableBody" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- 3. TAB: OUTBOUND (자재 출고) -->
+            <!-- 3. TAB: OUTBOUND -->
             <div id="tab-content-outbound" class="hidden space-y-6">
                 <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -368,15 +370,13 @@
                                     <th class="p-3 text-center">ERP 정산 상태</th>
                                 </tr>
                             </thead>
-                            <tbody id="outboundTableBody" class="divide-y divide-slate-100">
-                                <!-- Dynamic Outbound History -->
-                            </tbody>
+                            <tbody id="outboundTableBody" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- 4. TAB: REAL-TIME INVENTORY (실시간 자재 현황) -->
+            <!-- 4. TAB: INVENTORY -->
             <div id="tab-content-inventory" class="hidden space-y-6">
                 <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -417,15 +417,13 @@
                                     <th class="p-3 text-center">ERP 작업</th>
                                 </tr>
                             </thead>
-                            <tbody id="inventoryTableBody" class="divide-y divide-slate-100">
-                                <!-- Dynamic Inventory Rows -->
-                            </tbody>
+                            <tbody id="inventoryTableBody" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- 5. TAB: LOGS (ERP 연동 로그) -->
+            <!-- 5. TAB: LOGS -->
             <div id="tab-content-logs" class="hidden space-y-6">
                 <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
@@ -436,16 +434,14 @@
                         <button onclick="clearLogs()" class="px-3 py-1.5 text-xs text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50">로그 초기화</button>
                     </div>
 
-                    <div class="bg-slate-900 text-slate-200 font-mono text-xs p-4 rounded-xl max-h-[550px] overflow-y-auto scrollbar-slim space-y-2 border border-slate-800" id="fullLogContainer">
-                        <!-- Dynamic Full Logs -->
-                    </div>
+                    <div class="bg-slate-900 text-slate-200 font-mono text-xs p-4 rounded-xl max-h-[550px] overflow-y-auto scrollbar-slim space-y-2 border border-slate-800" id="fullLogContainer"></div>
                 </div>
             </div>
 
         </div>
     </main>
 
-    <!-- Modal 1: Inbound Form Modal -->
+    <!-- Modals -->
     <div id="inboundModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
             <div class="px-6 py-4 bg-emerald-600 text-white flex justify-between items-center">
@@ -455,9 +451,7 @@
             <form id="inboundForm" onsubmit="handleInboundSubmit(event)" class="p-6 space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">입고 자재 선택</label>
-                    <select id="inboundMaterialCode" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
-                        <!-- Options generated dynamically -->
-                    </select>
+                    <select id="inboundMaterialCode" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 outline-none"></select>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">입고 수량</label>
@@ -483,7 +477,6 @@
         </div>
     </div>
 
-    <!-- Modal 2: Outbound Form Modal -->
     <div id="outboundModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
             <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center">
@@ -493,9 +486,7 @@
             <form id="outboundForm" onsubmit="handleOutboundSubmit(event)" class="p-6 space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">출고 자재 선택</label>
-                    <select id="outboundMaterialCode" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <!-- Options generated dynamically -->
-                    </select>
+                    <select id="outboundMaterialCode" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none"></select>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">출고 수량</label>
@@ -523,7 +514,6 @@
 
     <!-- Application JavaScript Logic -->
     <script>
-        // State Management
         const state = {
             materials: [
                 { id: "MAT-1001", name: "고강도 알루미늄 프레임 A", category: "원자재", stock: 120, safety: 150, unitPrice: 45000, rack: "A1-Rack-02" },
@@ -553,13 +543,11 @@
         let trendChartInstance = null;
         let categoryChartInstance = null;
 
-        // Initialization Page
         document.addEventListener("DOMContentLoaded", () => {
             initDashboard();
             updateSelectOptions();
         });
 
-        // Tab Navigation
         function switchTab(tabId) {
             const tabs = ['dashboard', 'inbound', 'outbound', 'inventory', 'logs'];
             const titles = {
@@ -585,20 +573,13 @@
             document.getElementById('pageTitle').innerText = titles[tabId].title;
             document.getElementById('pageDescription').innerText = titles[tabId].desc;
 
-            if (tabId === 'dashboard') {
-                initDashboard();
-            } else if (tabId === 'inbound') {
-                renderInboundTable();
-            } else if (tabId === 'outbound') {
-                renderOutboundTable();
-            } else if (tabId === 'inventory') {
-                renderInventoryTable();
-            } else if (tabId === 'logs') {
-                renderFullLogs();
-            }
+            if (tabId === 'dashboard') initDashboard();
+            else if (tabId === 'inbound') renderInboundTable();
+            else if (tabId === 'outbound') renderOutboundTable();
+            else if (tabId === 'inventory') renderInventoryTable();
+            else if (tabId === 'logs') renderFullLogs();
         }
 
-        // Initialize Dashboard Components
         function initDashboard() {
             updateKpiCards();
             renderCharts();
@@ -606,32 +587,26 @@
             renderDashboardLogsStream();
         }
 
-        // Update KPI Cards
         function updateKpiCards() {
             document.getElementById('kpi-total-items').innerText = `${state.materials.length} 품목`;
 
-            // Today Inbound Summary
             const todayInbound = state.inboundLogs.filter(x => x.time.includes('2026-07-29'));
             const todayInboundCount = todayInbound.length;
             const todayInboundTotalQty = todayInbound.reduce((acc, curr) => acc + Number(curr.qty), 0);
             document.getElementById('kpi-inbound-today').innerText = `${todayInboundCount} 건`;
             document.getElementById('kpi-inbound-amount').innerText = `금일 수량: ${todayInboundTotalQty.toLocaleString()} 개`;
 
-            // Today Outbound Summary
             const todayOutbound = state.outboundLogs.filter(x => x.time.includes('2026-07-29'));
             const todayOutboundCount = todayOutbound.length;
             const todayOutboundTotalQty = todayOutbound.reduce((acc, curr) => acc + Number(curr.qty), 0);
             document.getElementById('kpi-outbound-today').innerText = `${todayOutboundCount} 건`;
             document.getElementById('kpi-outbound-amount').innerText = `금일 수량: ${todayOutboundTotalQty.toLocaleString()} 개`;
 
-            // Low Stock Count
             const lowStockCount = state.materials.filter(m => m.stock < m.safety).length;
             document.getElementById('kpi-low-stock').innerText = `${lowStockCount} 품목`;
         }
 
-        // Render Charts using Chart.js
         function renderCharts() {
-            // Trend Line Chart
             const ctxTrend = document.getElementById('trendChart').getContext('2d');
             if (trendChartInstance) trendChartInstance.destroy();
             
@@ -640,42 +615,21 @@
                 data: {
                     labels: ['07/23', '07/24', '07/25', '07/26', '07/27', '07/28', '07/29 (오늘)'],
                     datasets: [
-                        {
-                            label: '입고 수량 (EA)',
-                            data: [1200, 800, 1500, 400, 2100, 5000, 2000],
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            fill: true,
-                            tension: 0.3
-                        },
-                        {
-                            label: '출고 수량 (EA)',
-                            data: [900, 1100, 1300, 600, 1800, 2400, 150],
-                            borderColor: '#6366f1',
-                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                            fill: true,
-                            tension: 0.3
-                        }
+                        { label: '입고 수량 (EA)', data: [1200, 800, 1500, 400, 2100, 5000, 2000], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3 },
+                        { label: '출고 수량 (EA)', data: [900, 1100, 1300, 600, 1800, 2400, 150], borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', fill: true, tension: 0.3 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
-                    },
-                    scales: {
-                        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
-                        x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-                    }
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                    scales: { y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } }
                 }
             });
 
-            // Category Stock Distribution Doughnut Chart
             const ctxCategory = document.getElementById('categoryChart').getContext('2d');
             if (categoryChartInstance) categoryChartInstance.destroy();
 
-            // Calculate category valuation
             const categoryMap = {};
             state.materials.forEach(m => {
                 const totalVal = m.stock * m.unitPrice;
@@ -686,25 +640,17 @@
                 type: 'doughnut',
                 data: {
                     labels: Object.keys(categoryMap),
-                    datasets: [{
-                        data: Object.values(categoryMap),
-                        backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6'],
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
+                    datasets: [{ data: Object.values(categoryMap), backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6'], borderWidth: 2, borderColor: '#ffffff' }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 } } }
-                    },
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 } } } },
                     cutout: '65%'
                 }
             });
         }
 
-        // Dashboard Low Stock Table
         function renderDashboardLowStockTable() {
             const tbody = document.getElementById('dashboardLowStockBody');
             const lowItems = state.materials.filter(m => m.stock < m.safety);
@@ -727,7 +673,6 @@
             `).join('');
         }
 
-        // Live Log Stream on Dashboard
         function renderDashboardLogsStream() {
             const container = document.getElementById('dashboardLogsStream');
             container.innerHTML = state.erpLogs.map(log => {
@@ -750,7 +695,6 @@
             }).join('');
         }
 
-        // Render Inbound Table
         function renderInboundTable() {
             const tbody = document.getElementById('inboundTableBody');
             tbody.innerHTML = state.inboundLogs.map(log => `
@@ -773,7 +717,6 @@
             `).join('');
         }
 
-        // Render Outbound Table
         function renderOutboundTable() {
             const tbody = document.getElementById('outboundTableBody');
             tbody.innerHTML = state.outboundLogs.map(log => `
@@ -796,7 +739,6 @@
             `).join('');
         }
 
-        // Render Inventory Table with Filters
         function renderInventoryTable() {
             const tbody = document.getElementById('inventoryTableBody');
             const catFilter = document.getElementById('categoryFilter').value;
@@ -847,7 +789,6 @@
             }).join('');
         }
 
-        // Render Full Logs
         function renderFullLogs() {
             const container = document.getElementById('fullLogContainer');
             container.innerHTML = state.erpLogs.map(log => `
@@ -862,24 +803,19 @@
             `).join('');
         }
 
-        // Helper to populate select dropdowns
         function updateSelectOptions() {
             const inboundSelect = document.getElementById('inboundMaterialCode');
             const outboundSelect = document.getElementById('outboundMaterialCode');
-
             const options = state.materials.map(m => `<option value="${m.id}">${m.id} - ${m.name} (현재재고: ${m.stock})</option>`).join('');
-            
             inboundSelect.innerHTML = options;
             outboundSelect.innerHTML = options;
         }
 
-        // Modal Controls
         function openInboundModal() { document.getElementById('inboundModal').classList.remove('hidden'); document.getElementById('inboundModal').classList.add('flex'); }
         function closeInboundModal() { document.getElementById('inboundModal').classList.add('hidden'); document.getElementById('inboundModal').classList.remove('flex'); }
         function openOutboundModal() { document.getElementById('outboundModal').classList.remove('hidden'); document.getElementById('outboundModal').classList.add('flex'); }
         function closeOutboundModal() { document.getElementById('outboundModal').classList.add('hidden'); document.getElementById('outboundModal').classList.remove('flex'); }
 
-        // Form Submit Handlers
         function handleInboundSubmit(e) {
             e.preventDefault();
             const code = document.getElementById('inboundMaterialCode').value;
@@ -888,31 +824,19 @@
             const location = document.getElementById('inboundLocation').value || "일반창고";
 
             const mat = state.materials.find(m => m.id === code);
-            if (mat) {
-                mat.stock += qty;
-            }
+            if (mat) mat.stock += qty;
 
             const now = new Date();
             const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
             const newId = `IN-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(state.inboundLogs.length+1).padStart(2,'0')}`;
 
             state.inboundLogs.unshift({
-                id: newId,
-                time: timeStr,
-                code: code,
-                name: mat ? mat.name : "자재",
-                qty: qty,
-                vendor: vendor,
-                location: location,
-                status: "SAP MIGO 완료"
+                id: newId, time: timeStr, code: code, name: mat ? mat.name : "자재", qty: qty, vendor: vendor, location: location, status: "SAP MIGO 완료"
             });
 
-            // Log entry
             state.erpLogs.unshift({
                 time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
-                level: "SUCCESS",
-                system: "SAP MIGO",
-                message: `[신규 입고] ${newId} 처리 - ${mat.name} +${qty} EA (ERP 재고 평가 기장 완료)`
+                level: "SUCCESS", system: "SAP MIGO", message: `[신규 입고] ${newId} 처리 - ${mat.name} +${qty} EA (ERP 재고 평가 기장 완료)`
             });
 
             closeInboundModal();
@@ -942,22 +866,12 @@
             const newId = `OUT-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(state.outboundLogs.length+1).padStart(2,'0')}`;
 
             state.outboundLogs.unshift({
-                id: newId,
-                time: timeStr,
-                code: code,
-                name: mat ? mat.name : "자재",
-                qty: qty,
-                dept: dept,
-                requester: requester,
-                status: "ERP 비용 처리 완료"
+                id: newId, time: timeStr, code: code, name: mat ? mat.name : "자재", qty: qty, dept: dept, requester: requester, status: "ERP 비용 처리 완료"
             });
 
-            // Log entry
             state.erpLogs.unshift({
                 time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
-                level: "SUCCESS",
-                system: "SAP CO",
-                message: `[신규 출고] ${newId} 승인 - ${mat.name} -${qty} EA -> ${dept} 비용 매핑 완료`
+                level: "SUCCESS", system: "SAP CO", message: `[신규 출고] ${newId} 승인 - ${mat.name} -${qty} EA -> ${dept} 비용 매핑 완료`
             });
 
             closeOutboundModal();
@@ -966,7 +880,6 @@
             alert("출고 승인이 완료되었으며 코스트센터 계정으로 자동 기장되었습니다.");
         }
 
-        // ERP Manual Sync Simulation
         function triggerErpSync() {
             const icon = document.getElementById('syncIcon');
             icon.classList.add('fa-spin');
@@ -978,10 +891,7 @@
                 
                 document.getElementById('lastSyncTime').innerText = "방금 전";
                 state.erpLogs.unshift({
-                    time: timeStr,
-                    level: "INFO",
-                    system: "SAP RFC",
-                    message: "수동 실시간 ERP DB 전체 재해시 및 수량 정합성 검증 완료 (오차 0%)"
+                    time: timeStr, level: "INFO", system: "SAP RFC", message: "수동 실시간 ERP DB 전체 재해시 및 수량 정합성 검증 완료 (오차 0%)"
                 });
                 
                 initDashboard();
@@ -989,21 +899,16 @@
             }, 800);
         }
 
-        // Individual Material Sync
         function triggerIndividualSync(matId) {
             const now = new Date();
             const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
             state.erpLogs.unshift({
-                time: timeStr,
-                level: "INFO",
-                system: "ERP API",
-                message: `단일 자재 [${matId}] ERP 장부 수량과 창고 실물 재고 1:1 검증 및 동기화 완료`
+                time: timeStr, level: "INFO", system: "ERP API", message: `단일 자재 [${matId}] ERP 장부 수량과 창고 실물 재고 1:1 검증 및 동기화 완료`
             });
             renderInventoryTable();
             alert(`자재 코드 ${matId}의 ERP 장부 상태가 최신화되었습니다.`);
         }
 
-        // ERP Auto Order Simulation
         function simulateErpAutoOrder() {
             const lowItems = state.materials.filter(m => m.stock < m.safety);
             if (lowItems.length === 0) {
@@ -1017,10 +922,7 @@
             lowItems.forEach(item => {
                 const reqQty = (item.safety * 2) - item.stock;
                 state.erpLogs.unshift({
-                    time: timeStr,
-                    level: "SUCCESS",
-                    system: "ERP MM-PO",
-                    message: `[ERP 자동 발주] ${item.name} (${item.id}) - 수량 ${reqQty} EA 구매요청서(PR) 자동 발행 완료`
+                    time: timeStr, level: "SUCCESS", system: "ERP MM-PO", message: `[ERP 자동 발주] ${item.name} (${item.id}) - 수량 ${reqQty} EA 구매요청서(PR) 자동 발행 완료`
                 });
             });
 
@@ -1028,30 +930,26 @@
             alert(`안전재고 미달 품목 ${lowItems.length}건에 대해 ERP 구매요청서(PR)가 자동으로 생성되었습니다.`);
         }
 
-        // Clear Logs
         function clearLogs() {
             state.erpLogs = [];
             renderFullLogs();
         }
 
-        // Table Search Filters
         function filterInboundTable() {
             const query = document.getElementById('inboundSearch').value.toLowerCase();
             const rows = document.querySelectorAll('#inboundTableBody tr');
-            rows.forEach(row => {
-                const text = row.innerText.toLowerCase();
-                row.style.display = text.includes(query) ? '' : 'none';
-            });
+            rows.forEach(row => { row.style.display = row.innerText.toLowerCase().includes(query) ? '' : 'none'; });
         }
 
         function filterOutboundTable() {
             const query = document.getElementById('outboundSearch').value.toLowerCase();
             const rows = document.querySelectorAll('#outboundTableBody tr');
-            rows.forEach(row => {
-                const text = row.innerText.toLowerCase();
-                row.style.display = text.includes(query) ? '' : 'none';
-            });
+            rows.forEach(row => { row.style.display = row.innerText.toLowerCase().includes(query) ? '' : 'none'; });
         }
     </script>
 </body>
 </html>
+"""
+
+# Streamlit에 HTML 렌더링 (높이 및 스크롤 설정)
+components.html(html_code, height=900, scrolling=True)
