@@ -1,261 +1,575 @@
-import streamlit as st
-import requests
-import pandas as pd
-from datetime import datetime
+<div class="p-3 bg-indigo-50 rounded-lg border border-indigo-100 text-[11px] text-indigo-800 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-indigo-600"></i>
+                    <span>출고 승인 시 ERP CO(원가통제) 모듈과 연동되어 원가 배부 처리가 실행됩니다.</span>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeOutboundModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">취소</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-md transition-all">출고 승인 및 ERP 연동</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-# ==============================================================================
-# 1. 페이지 기본 설정 및 스타일
-# ==============================================================================
-st.set_page_config(
-    page_title="AUTO-ERP SCM 자동화 대시보드",
-    page_icon="📦",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+    <!-- JavaScript Application Logic -->
+    <script>
+        // --- Mock Data Store ---
+        let materialsData = [
+            { code: "MAT-1001", name: "고장력 알루미늄 판재", category: "원자재", stock: 1450, safety: 500, price: 18500, location: "A1-Zone-01", status: "NORMAL" },
+            { code: "MAT-1002", name: "SUS304 스테인리스 코일", category: "원자재", stock: 320, safety: 400, price: 32000, location: "A1-Zone-02", status: "LOW" },
+            { code: "PAR-2001", name: "정밀 육각 볼트 (M8x30)", category: "부자재", stock: 12500, safety: 5000, price: 120, location: "B2-Rack-11", status: "NORMAL" },
+            { code: "PAR-2002", name: "산업용 실링 가스켓", category: "부자재", stock: 180, safety: 300, price: 2400, location: "B2-Rack-15", status: "LOW" },
+            { code: "ELE-3001", name: "PLC 메인 제어 마이크로칩", category: "전자부품", stock: 85, safety: 100, price: 145000, location: "C3-Safe-01", status: "LOW" },
+            { code: "ELE-3002", name: "서보 모터 드라이버 (AC 220V)", category: "전자부품", stock: 210, safety: 80, price: 280000, location: "C3-Rack-04", status: "NORMAL" },
+            { code: "PAC-4001", name: "고강도 수출용 파렛트", category: "포장재", stock: 450, safety: 150, price: 15000, location: "D1-Yard-01", status: "NORMAL" },
+            { code: "PAC-4002", name: "완충 에어캡 보호 패드", category: "포장재", stock: 95, safety: 200, price: 3500, location: "D1-Rack-08", status: "LOW" }
+        ];
 
-# 사이드바 설정
-with st.sidebar:
-    st.title("📦 AUTO-ERP SCM")
-    st.caption("구글 스프레드시트 기반 실시간 자재 관리 시스템")
-    
-    st.success("🟢 Apps Script Web App 연결됨")
-    
-    # 실시간 새로고침 버튼
-    if st.button("🔄 데이터 실시간 새로고침", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
+        let inboundHistory = [
+            { id: "IN-2026-0729-01", date: "2026-07-29 09:15", code: "MAT-1001", name: "고장력 알루미늄 판재", qty: 500, vendor: "(주)한국소재산업", location: "A1-Zone-01", erpStatus: "SYNCED" },
+            { id: "IN-2026-0728-02", date: "2026-07-28 14:30", code: "PAR-2001", name: "정밀 육각 볼트 (M8x30)", qty: 3000, vendor: "대성테크", location: "B2-Rack-11", erpStatus: "SYNCED" }
+        ];
 
-# ==============================================================================
-# 2. Apps Script 웹 앱 URL 설정
-# ==============================================================================
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz3sxE-InFfCaloiWzLIqZ2FGAq3w858qCng8cFB5KQIUnuw9mPvdQmY-7bUL1B_ic/exec"
+        let outboundHistory = [
+            { id: "OUT-2026-0729-01", date: "2026-07-29 11:20", code: "ELE-3002", name: "서보 모터 드라이버 (AC 220V)", qty: 20, dept: "조립 1라인 / 생산팀", requester: "김조립 대리", erpStatus: "SETTLED" },
+            { id: "OUT-2026-0728-01", date: "2026-07-28 16:45", code: "MAT-1001", name: "고장력 알루미늄 판재", qty: 150, dept: "프레스 공정 / 제조부", requester: "이프레스 과장", erpStatus: "SETTLED" }
+        ];
 
-@st.cache_data(ttl=30)  # 30초 간격 자동 갱신
-def load_data_from_script(url: str):
-    """Google Apps Script 웹 앱에서 전체 시트 데이터를 JSON으로 불러옵니다."""
-    try:
-        response = requests.get(url, timeout=15, allow_redirects=True)
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                if isinstance(data, dict) and "status" in data and data["status"] == "error":
-                    return None, f"Apps Script 에러 발생: {data.get('message', '알 수 없는 오류')}"
-                return data, None
-            except Exception:
-                return None, "응답 데이터를 JSON 형태로 파싱하지 못했습니다."
-        else:
-            return None, f"HTTP 오류 발생: {response.status_code}"
-    except Exception as e:
-        return None, f"데이터를 불러오는 중 오류가 발생했습니다: {str(e)}"
+        let logs = [
+            { time: "16:35:10", type: "INFO", module: "SAP-MM", message: "ERP material master synchronization completed successfully. 8 items verified." },
+            { time: "16:20:05", type: "SUCCESS", module: "SAP-MIGO", message: "Inbound doc [IN-2026-0729-01] posted to SAP MM inventory ledger." },
+            { time: "14:11:50", type: "WARNING", module: "WMS-ALERT", message: "Low stock threshold triggered for [ELE-3001] PLC 메인 제어 마이크로칩 (Stock: 85 < Safety: 100)." },
+            { time: "11:20:00", type: "SUCCESS", module: "SAP-CO", message: "Outbound document [OUT-2026-0729-01] cost center allocation processed." }
+        ];
 
-raw_data, error_msg = load_data_from_script(WEB_APP_URL)
+        let pendingTxCount = 0;
+        let trendChartInstance = null;
+        let categoryChartInstance = null;
 
-# ==============================================================================
-# 3. 데이터프레임 변환 및 전처리 함수
-# ==============================================================================
-def find_and_convert_sheet(data_dict, target_keywords):
-    """지정된 키워드에 부합하는 시트 데이터를 DataFrame으로 변환합니다."""
-    if not isinstance(data_dict, dict):
-        return None
-    
-    for key, values in data_dict.items():
-        clean_key = str(key).strip().lower()
-        for kw in target_keywords:
-            if kw.lower() in clean_key:
-                if isinstance(values, list) and len(values) > 0:
-                    headers = [str(h).strip() for h in values[0]]
-                    rows = values[1:]
-                    df = pd.DataFrame(rows, columns=headers)
-                    df = df.dropna(how='all')
-                    return df
-                elif isinstance(values, list):
-                    return pd.DataFrame()
-    return None
+        // --- Initialization on Load ---
+        document.addEventListener("DOMContentLoaded", () => {
+            initCharts();
+            renderDashboard();
+            renderInboundTable();
+            renderOutboundTable();
+            renderInventoryTable();
+            renderLogs();
+            populateMaterialSelects();
+        });
 
-inventory_df = None
-inbound_df = None
-outbound_df = None
-
-if raw_data:
-    inventory_df = find_and_convert_sheet(raw_data, ["inventory", "재고", "stock"])
-    inbound_df = find_and_convert_sheet(raw_data, ["inbound", "입고", "in"])
-    outbound_df = find_and_convert_sheet(raw_data, ["outbound", "출고", "out"])
-
-# ==============================================================================
-# 4. 상단 대시보드 타이틀 & 주요 지표 (KPI Cards)
-# ==============================================================================
-st.title("🏭 AUTO-ERP 자재 수급/재고 관리 자동화 시스템")
-st.caption(f"마지막 데이터 동기화 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-if error_msg:
-    st.error(error_msg)
-
-# 컬럼 매핑 설정 (KeyError 방지용 안전 장치)
-cur_col = None
-safe_col = None
-
-if inventory_df is not None and not inventory_df.empty:
-    columns_list = list(inventory_df.columns)
-    
-    # 사이드바나 상단에서 컬럼을 수동으로 매핑할 수 있도록 예외처리
-    try:
-        cur_col = next(c for c in columns_list if "현재" in c or "수량" in c or "재고" in c)
-    except StopIteration:
-        cur_col = columns_list[0] if columns_list else None
-        
-    try:
-        safe_col = next(c for c in columns_list if "안전" in c)
-    except StopIteration:
-        safe_col = columns_list[1] if len(columns_list) > 1 else None
-
-# 지표 계산 로직
-total_items = 0
-total_inbound_qty = 0
-total_outbound_qty = 0
-low_stock_count = 0
-
-if inventory_df is not None and not inventory_df.empty:
-    total_items = len(inventory_df)
-    
-    # 숫자형 변환
-    if cur_col and cur_col in inventory_df.columns:
-        inventory_df[cur_col] = pd.to_numeric(inventory_df[cur_col], errors='coerce').fillna(0)
-    if safe_col and safe_col in inventory_df.columns:
-        inventory_df[safe_col] = pd.to_numeric(inventory_df[safe_col], errors='coerce').fillna(0)
-        
-    if cur_col and safe_col and cur_col in inventory_df.columns and safe_col in inventory_df.columns:
-        low_stock_df = inventory_df[inventory_df[cur_col] < inventory_df[safe_col]]
-        low_stock_count = len(low_stock_df)
-
-if inbound_df is not None and not inbound_df.empty:
-    qty_col = next((c for c in inbound_df.columns if "수량" in c or "입고" in c or "qty" in c.lower()), None)
-    if qty_col:
-        total_inbound_qty = int(pd.to_numeric(inbound_df[qty_col], errors='coerce').fillna(0).sum())
-    else:
-        total_inbound_qty = len(inbound_df)
-
-if outbound_df is not None and not outbound_df.empty:
-    qty_col = next((c for c in outbound_df.columns if "수량" in c or "출고" in c or "qty" in c.lower()), None)
-    if qty_col:
-        total_outbound_qty = int(pd.to_numeric(outbound_df[qty_col], errors='coerce').fillna(0).sum())
-    else:
-        total_outbound_qty = len(outbound_df)
-
-# KPI 카드 배치
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-with kpi1:
-    st.metric(label="📋 총 관리 품목 수", value=f"{total_items:,} 개")
-with kpi2:
-    st.metric(label="📥 누적 입고 수량", value=f"{total_inbound_qty:,} 건/개")
-with kpi3:
-    st.metric(label="📤 누적 출고 수량", value=f"{total_outbound_qty:,} 건/개")
-with kpi4:
-    st.metric(label="🚨 안전재고 부족 품목", value=f"{low_stock_count} 개", delta=f"-{low_stock_count}" if low_stock_count > 0 else "정상", delta_color="inverse")
-
-st.divider()
-
-# ==============================================================================
-# 5. 메인 자동화 대시보드 탭 구성
-# ==============================================================================
-tab_stock, tab_inbound, tab_outbound, tab_alert, tab_action = st.tabs([
-    "📊 통합 재고 현황", 
-    "📥 입고 관리", 
-    "📤 출고 관리", 
-    "⚠️ 재고 부족 경고",
-    "📝 입/출고 수동 등록 및 연동"
-])
-
-# ------------------------------------------------------------------------------
-# TAB 1: 통합 재고 현황 (검색 및 필터 기능 포함)
-# ------------------------------------------------------------------------------
-with tab_stock:
-    st.subheader("실시간 자재 재고 리스트")
-    if inventory_df is not None and not inventory_df.empty:
-        search_query = st.text_input("🔍 자재명 / 품목코드 / 규격 검색", placeholder="검색어를 입력하세요...")
-        filtered_df = inventory_df.copy()
-        
-        if search_query:
-            mask = filtered_df.astype(str).apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
-            filtered_df = filtered_df[mask]
-        
-        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("재고 데이터가 비어 있거나 스프레드시트에서 데이터를 불러오지 못했습니다.")
-
-# ------------------------------------------------------------------------------
-# TAB 2: 입고 내역 관리
-# ------------------------------------------------------------------------------
-with tab_inbound:
-    st.subheader("자재 입고 기록 및 이력")
-    if inbound_df is not None and not inbound_df.empty:
-        st.dataframe(inbound_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("등록된 입고 내역 데이터가 없습니다.")
-
-# ------------------------------------------------------------------------------
-# TAB 3: 출고 내역 관리
-# ------------------------------------------------------------------------------
-with tab_outbound:
-    st.subheader("자재 출고 기록 및 이력")
-    if outbound_df is not None and not outbound_df.empty:
-        st.dataframe(outbound_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("등록된 출고 내역 데이터가 없습니다.")
-
-# ------------------------------------------------------------------------------
-# TAB 4: 안전재고 부족 자재 모니터링
-# ------------------------------------------------------------------------------
-with tab_alert:
-    st.subheader("🚨 발주 필요 (안전재고 미달 품목)")
-    if inventory_df is not None and not inventory_df.empty:
-        if cur_col and safe_col and cur_col in inventory_df.columns and safe_col in inventory_df.columns:
-            alert_df = inventory_df[inventory_df[cur_col] < inventory_df[safe_col]].copy()
-            if not alert_df.empty:
-                alert_df["부족 수량(권장 발주량)"] = alert_df[safe_col] - alert_df[cur_col]
-                st.warning(f"⚠️ 총 {len(alert_df)}개 품목이 안전재고 수준 이하입니다. 긴급 발주 검토가 필요합니다.")
-                st.dataframe(alert_df, use_container_width=True, hide_index=True)
-            else:
-                st.success("🎉 현재 모든 자재가 안전재고 수량 이상을 유지하고 있습니다.")
-        else:
-            st.info("스프레드시트에 재고 수량과 안전재고를 비교할 수 있는 열이 지정되지 않았습니다.")
-    else:
-        st.info("재고 데이터를 불러올 수 없습니다.")
-
-# ------------------------------------------------------------------------------
-# TAB 5: 자재 입/출고 등록 폼 (시트 자동 연동 준비)
-# ------------------------------------------------------------------------------
-with tab_action:
-    st.subheader("📝 신규 입/출고 작업 등록")
-    st.caption("대시보드에서 등록 후 구글 시트에 바로 이력을 기록할 수 있습니다.")
-    
-    with st.form("inventory_action_form"):
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            action_type = st.selectbox("작업 유형", ["입고 (Inbound)", "출고 (Outbound)"])
-        with col_b:
-            item_name = st.text_input("자재명 / 품목코드", placeholder="예: BOLT-M8")
-        with col_c:
-            qty = st.number_input("수량", min_value=1, value=1, step=1)
-            
-        note = st.text_input("비고 / 작업자 사원번호", placeholder="예: 홍길동 (정기 수급)")
-        
-        submitted = st.form_submit_button("🚀 스프레드시트로 등록 전송")
-        if submitted:
-            if not item_name:
-                st.error("품목명을 입력해주세요.")
-            else:
-                payload = {
-                    "actionType": action_type,
-                    "itemName": item_name,
-                    "qty": qty,
-                    "note": note
+        // --- Tab Navigation Switcher ---
+        function switchTab(tabName) {
+            const tabs = ['dashboard', 'inbound', 'outbound', 'inventory', 'logs'];
+            tabs.forEach(t => {
+                const content = document.getElementById(`tab-content-${t}`);
+                const btn = document.getElementById(`nav-${t}`);
+                if (t === tabName) {
+                    content.classList.remove('hidden');
+                    btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all bg-blue-600 text-white shadow-md";
+                } else {
+                    content.classList.add('hidden');
+                    btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-slate-800 hover:text-white transition-all text-slate-400";
                 }
-                try:
-                    response = requests.post(WEB_APP_URL, json=payload, timeout=10)
-                    if response.status_code == 200:
-                        st.success(f"✅ [{action_type}] '{item_name}' {qty}개 기록 완료!")
-                        st.rerun()
-                    else:
-                        st.error("데이터 전송에 실패했습니다.")
-                except Exception as e:
-                    st.error(f"서버 통신 중 오류 발생: {e}")
+            });
+
+            // Update Header Titles
+            const titles = {
+                dashboard: { title: "ERP 연동 자재 관리 종합 대시보드", desc: "실시간 자재 수급 상태 및 ERP 자동 전송 트랜잭션을 한눈에 확인합니다." },
+                inbound: { title: "자재 입고 관리 (Inbound MIGO)", desc: "외부 공급사로부터 입고되는 자재를 검수하고 SAP 재고 장부에 즉시 반영합니다." },
+                outbound: { title: "자재 출고 관리 (Outbound Goods Issue)", desc: "생산 현장 불출 요청 승인 및 원가 회계 계정 연동 현황을 관리합니다." },
+                inventory: { title: "실시간 자재 재고 현황 (Real-time SCM Inventory)", desc: "창고 위치별 실물 재고와 ERP 장부 재고의 실시간 비교 및 안전재고 모니터링." },
+                logs: { title: "ERP 인터페이스 연동 로그 (API / SAP / MES)", desc: "자재 시스템과 외부 ERP 간 실시간 인터페이스 통신 히스토리 및 장애 추적 로그." }
+            };
+            document.getElementById("pageTitle").innerText = titles[tabName].title;
+            document.getElementById("pageDescription").innerText = titles[tabName].desc;
+        }
+
+        // --- Render Dashboard Metrics & Tables ---
+        function renderDashboard() {
+            // KPI Calculations
+            const totalItems = materialsData.length;
+            const lowStockCount = materialsData.filter(m => m.stock < m.safety).length;
+            const todayInboundCount = inboundHistory.length;
+            const todayInboundQty = inboundHistory.reduce((acc, cur) => acc + cur.qty, 0);
+            const todayOutboundCount = outboundHistory.length;
+            const todayOutboundQty = outboundHistory.reduce((acc, cur) => acc + cur.qty, 0);
+
+            document.getElementById("kpi-total-items").innerText = totalItems + " 품목";
+            document.getElementById("kpi-inbound-today").innerText = todayInboundCount + " 건";
+            document.getElementById("kpi-inbound-amount").innerText = `누적 수량: ${todayInboundQty.toLocaleString()} EA`;
+            document.getElementById("kpi-outbound-today").innerText = todayOutboundCount + " 건";
+            document.getElementById("kpi-outbound-amount").innerText = `누적 수량: ${todayOutboundQty.toLocaleString()} EA`;
+            document.getElementById("kpi-low-stock").innerText = lowStockCount + " 품목";
+
+            // Low Stock Table in Dashboard
+            const lowStockItems = materialsData.filter(m => m.stock < m.safety);
+            const tbody = document.getElementById("dashboardLowStockBody");
+            tbody.innerHTML = "";
+            if (lowStockItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">현재 안전재고 미달 품목이 없습니다.</td></tr>`;
+            } else {
+                lowStockItems.forEach(item => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="p-2.5 font-mono font-medium text-slate-700">${item.code}</td>
+                            <td class="p-2.5 font-semibold text-slate-900">${item.name}</td>
+                            <td class="p-2.5 text-right font-bold text-rose-600">${item.stock.toLocaleString()} EA</td>
+                            <td class="p-2.5 text-right text-slate-500">${item.safety.toLocaleString()} EA</td>
+                            <td class="p-2.5 text-center">
+                                <button onclick="triggerAutoOrderFor('${item.code}')" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-[10px] font-semibold shadow-xs">ERP 자동발주</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Dashboard Logs Stream Snippet
+            const streamContainer = document.getElementById("dashboardLogsStream");
+            streamContainer.innerHTML = "";
+            logs.slice(0, 5).forEach(log => {
+                const badgeColor = log.type === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : log.type === 'WARNING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                streamContainer.innerHTML += `
+                    <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 text-[11px] font-mono flex items-center justify-between">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold border ${badgeColor}">${log.module}</span>
+                            <span class="text-slate-300 truncate">${log.message}</span>
+                        </div>
+                        <span class="text-slate-500 text-[10px] flex-shrink-0 ml-2">${log.time}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // --- Render Tables for Sub-tabs ---
+        function renderInboundTable() {
+            const searchVal = document.getElementById("inboundSearch").value.toLowerCase();
+            const tbody = document.getElementById("inboundTableBody");
+            tbody.innerHTML = "";
+            const filtered = inboundHistory.filter(i => i.name.toLowerCase().includes(searchVal) || i.code.toLowerCase().includes(searchVal) || i.vendor.toLowerCase().includes(searchVal));
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">입고 내역이 없습니다.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-mono font-bold text-slate-700">${item.id}</td>
+                        <td class="p-3 text-slate-500 text-xs">${item.date}</td>
+                        <td class="p-3"><span class="font-mono text-xs text-blue-600 font-semibold">${item.code}</span><br><span class="font-medium text-slate-800">${item.name}</span></td>
+                        <td class="p-3 text-right font-bold text-emerald-600">+${item.qty.toLocaleString()} EA</td>
+                        <td class="p-3 text-slate-700">${item.vendor}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-mono text-slate-600">${item.location}</span></td>
+                        <td class="p-3 text-center">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <i class="fa-solid fa-check mr-1"></i> SAP 연동완료
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function filterInboundTable() { renderInboundTable(); }
+
+        function renderOutboundTable() {
+            const searchVal = document.getElementById("outboundSearch").value.toLowerCase();
+            const tbody = document.getElementById("outboundTableBody");
+            tbody.innerHTML = "";
+            const filtered = outboundHistory.filter(o => o.name.toLowerCase().includes(searchVal) || o.code.toLowerCase().includes(searchVal) || o.dept.toLowerCase().includes(searchVal) || o.requester.toLowerCase().includes(searchVal));
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">출고 내역이 없습니다.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-mono font-bold text-slate-700">${item.id}</td>
+                        <td class="p-3 text-slate-500 text-xs">${item.date}</td>
+                        <td class="p-3"><span class="font-mono text-xs text-indigo-600 font-semibold">${item.code}</span><br><span class="font-medium text-slate-800">${item.name}</span></td>
+                        <td class="p-3 text-right font-bold text-indigo-600">-${item.qty.toLocaleString()} EA</td>
+                        <td class="p-3 text-slate-700 font-medium">${item.dept}</td>
+                        <td class="p-3 text-slate-600">${item.requester}</td>
+                        <td class="p-3 text-center">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <i class="fa-solid fa-check mr-1"></i> CO 정산완료
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function filterOutboundTable() { renderOutboundTable(); }
+
+        function renderInventoryTable() {
+            const catFilter = document.getElementById("categoryFilter").value;
+            const statusFilter = document.getElementById("stockStatusFilter").value;
+            const searchVal = document.getElementById("inventorySearch").value.toLowerCase();
+
+            const tbody = document.getElementById("inventoryTableBody");
+            tbody.innerHTML = "";
+
+            let filtered = materialsData.filter(item => {
+                const matchCat = catFilter === 'ALL' || item.category === catFilter;
+                const matchStatus = statusFilter === 'ALL' || item.status === statusFilter;
+                const matchSearch = item.name.toLowerCase().includes(searchVal) || item.code.toLowerCase().includes(searchVal);
+                return matchCat && matchStatus && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-400">조건에 일치하는 자재가 없습니다.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const totalVal = item.stock * item.price;
+                const isLow = item.stock < item.safety;
+                const statusBadge = isLow 
+                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">안전재고 미달</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">정상</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-mono font-bold text-slate-700">${item.code}</td>
+                        <td class="p-3 font-semibold text-slate-900">${item.name}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 bg-slate-100 rounded text-slate-600 text-[11px]">${item.category}</span></td>
+                        <td class="p-3 text-right font-bold ${isLow ? 'text-rose-600' : 'text-slate-900'}">${item.stock.toLocaleString()} EA</td>
+                        <td class="p-3 text-right text-slate-500">${item.safety.toLocaleString()} EA</td>
+                        <td class="p-3 text-right text-slate-600 font-mono">${item.price.toLocaleString()} 원</td>
+                        <td class="p-3 text-right font-bold text-slate-900 font-mono">${totalVal.toLocaleString()} 원</td>
+                        <td class="p-3 font-mono text-xs text-slate-600">${item.location}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="triggerAutoOrderFor('${item.code}')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-semibold shadow-xs">발주요청</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderLogs() {
+            const container = document.getElementById("fullLogContainer");
+            container.innerHTML = "";
+            logs.forEach(log => {
+                const color = log.type === 'SUCCESS' ? 'text-emerald-400' : log.type === 'WARNING' ? 'text-amber-400' : 'text-blue-400';
+                container.innerHTML += `
+                    <div class="flex items-start gap-3 pb-2 border-b border-slate-800/80">
+                        <span class="text-slate-500">${log.time}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 ${color}">${log.module}</span>
+                        <span class="text-slate-200 flex-1">${log.message}</span>
+                        <span class="text-slate-500 uppercase text-[10px]">${log.type}</span>
+                    </div>
+                `;
+            });
+        }
+
+        function clearLogs() {
+            logs = [];
+            renderLogs();
+            renderDashboard();
+            showToast("연동 로그가 초기화되었습니다.");
+        }
+
+        // --- Modals Handlers ---
+        function populateMaterialSelects() {
+            const inboundSel = document.getElementById("inboundMaterialCode");
+            const outboundSel = document.getElementById("outboundMaterialCode");
+            inboundSel.innerHTML = "";
+            outboundSel.innerHTML = "";
+
+            materialsData.forEach(m => {
+                const optHtml = `<option value="${m.code}">${m.code} - ${m.name} (현재고: ${m.stock} EA)</option>`;
+                inboundSel.innerHTML += optHtml;
+                outboundSel.innerHTML += optHtml;
+            });
+        }
+
+        function openInboundModal() {
+            document.getElementById("inboundModal").classList.remove("hidden");
+            document.getElementById("inboundModal").classList.add("flex");
+        }
+        function closeInboundModal() {
+            document.getElementById("inboundModal").classList.remove("flex");
+            document.getElementById("inboundModal").classList.add("hidden");
+        }
+
+        function openOutboundModal() {
+            document.getElementById("outboundModal").classList.remove("hidden");
+            document.getElementById("outboundModal").classList.add("flex");
+        }
+        function closeOutboundModal() {
+            document.getElementById("outboundModal").classList.remove("flex");
+            document.getElementById("outboundModal").classList.add("hidden");
+        }
+
+        // --- Form Submissions with ERP Simulation ---
+        function handleInboundSubmit(e) {
+            e.preventDefault();
+            const code = document.getElementById("inboundMaterialCode").value;
+            const qty = parseInt(document.getElementById("inboundQty").value);
+            const vendor = document.getElementById("inboundVendor").value;
+            const location = document.getElementById("inboundLocation").value || "A1-Zone-General";
+
+            const targetMat = materialsData.find(m => m.code === code);
+            if (!targetMat) return;
+
+            targetMat.stock += qty;
+            if (targetMat.stock >= targetMat.safety) targetMat.status = "NORMAL";
+
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const newId = `IN-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${Math.floor(10 + Math.random()*90)}`;
+
+            inboundHistory.unshift({
+                id: newId,
+                date: timeStr,
+                code: targetMat.code,
+                name: targetMat.name,
+                qty: qty,
+                vendor: vendor,
+                location: location,
+                erpStatus: "SYNCED"
+            });
+
+            logs.unshift({
+                time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+                type: "SUCCESS",
+                module: "SAP-MIGO",
+                message: `Inbound document [${newId}] successfully posted. Material [${targetMat.code}] stock increased by ${qty} EA.`
+            });
+
+            pendingTxCount++;
+            document.getElementById("pendingTxCount").innerText = pendingTxCount + " 건";
+
+            closeInboundModal();
+            document.getElementById("inboundForm").reset();
+
+            // Refresh UI
+            renderDashboard();
+            renderInboundTable();
+            renderInventoryTable();
+            renderLogs();
+            updateCharts();
+
+            showToast(`신규 입고가 등록되고 ERP 장부에 반영되었습니다! (${targetMat.name} +${qty}EA)`);
+        }
+
+        function handleOutboundSubmit(e) {
+            e.preventDefault();
+            const code = document.getElementById("outboundMaterialCode").value;
+            const qty = parseInt(document.getElementById("outboundQty").value);
+            const dept = document.getElementById("outboundDept").value;
+            const requester = document.getElementById("outboundRequester").value;
+
+            const targetMat = materialsData.find(m => m.code === code);
+            if (!targetMat) return;
+
+            if (targetMat.stock < qty) {
+                alert(`[재고 부족 오류] 출고 요청 수량(${qty} EA)이 현재고(${targetMat.stock} EA)를 초과합니다.`);
+                return;
+            }
+
+            targetMat.stock -= qty;
+            if (targetMat.stock < targetMat.safety) targetMat.status = "LOW";
+
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const newId = `OUT-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${Math.floor(10 + Math.random()*90)}`;
+
+            outboundHistory.unshift({
+                id: newId,
+                date: timeStr,
+                code: targetMat.code,
+                name: targetMat.name,
+                qty: qty,
+                dept: dept,
+                requester: requester,
+                erpStatus: "SETTLED"
+            });
+
+            logs.unshift({
+                time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+                type: "SUCCESS",
+                module: "SAP-CO",
+                message: `Outbound goods issue [${newId}] processed. Material [${targetMat.code}] -${qty} EA allocated to [${dept}].`
+            });
+
+            pendingTxCount++;
+            document.getElementById("pendingTxCount").innerText = pendingTxCount + " 건";
+
+            closeOutboundModal();
+            document.getElementById("outboundForm").reset();
+
+            // Refresh UI
+            renderDashboard();
+            renderOutboundTable();
+            renderInventoryTable();
+            renderLogs();
+            updateCharts();
+
+            showToast(`자재 출고 승인 및 ERP 원가 정산이 완료되었습니다! (${targetMat.name} -${qty}EA)`);
+        }
+
+        function triggerAutoOrderFor(code) {
+            const item = materialsData.find(m => m.code === code);
+            if (!item) return;
+            const orderQty = (item.safety - item.stock) + 200;
+
+            const now = new Date();
+            logs.unshift({
+                time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+                type: "SUCCESS",
+                module: "SAP-PURCHASE",
+                message: `Automated Purchase Requisition (PR) created for [${item.code}] ${item.name}. Quantity: ${orderQty} EA.`
+            });
+
+            pendingTxCount++;
+            document.getElementById("pendingTxCount").innerText = pendingTxCount + " 건";
+            renderLogs();
+            renderDashboard();
+
+            showToast(`[${item.name}] 품목에 대한 ERP 자동 구매 발주서(PR)가 생성되었습니다! (+${orderQty} EA)`);
+        }
+
+        function simulateErpAutoOrder() {
+            const lowItems = materialsData.filter(m => m.stock < m.safety);
+            if (lowItems.length === 0) {
+                showToast("현재 안전재고 미달 품목이 없어 발주할 대상이 없습니다.");
+                return;
+            }
+            lowItems.forEach(item => triggerAutoOrderFor(item.code));
+        }
+
+        function triggerErpSync() {
+            const syncIcon = document.getElementById("syncIcon");
+            syncIcon.classList.add("fa-spin");
+            
+            setTimeout(() => {
+                syncIcon.classList.remove("fa-spin");
+                pendingTxCount = 0;
+                document.getElementById("pendingTxCount").innerText = "0 건";
+                document.getElementById("lastSyncTime").innerText = "방금 전";
+                
+                const now = new Date();
+                logs.unshift({
+                    time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+                    type: "SUCCESS",
+                    module: "SAP-RFC",
+                    message: "Manual real-time ERP synchronization executed successfully. All inventory ledgers matched."
+                });
+                renderLogs();
+                renderDashboard();
+                showToast("SAP ERP와 실시간 동기화가 성공적으로 완료되었습니다!");
+            }, 1000);
+        }
+
+        // --- Toast Notification Helper ---
+        function showToast(msg) {
+            const toast = document.createElement("div");
+            toast.className = "fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl text-xs z-50 flex items-center gap-3 border border-slate-700 transition-all animate-bounce";
+            toast.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-base"></i><span>${msg}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // --- Chart.js Initializations ---
+        function initCharts() {
+            // 1. Weekly Trend Line Chart
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            trendChartInstance = new Chart(ctxTrend, {
+                type: 'line',
+                data: {
+                    labels: ['7일 전', '6일 전', '5일 전', '4일 전', '3일 전', '어제', '오늘'],
+                    datasets: [
+                        {
+                            label: '입고 수량 (EA)',
+                            data: [1200, 850, 1500, 920, 1100, 2400, inboundHistory.reduce((a,b)=>a+b.qty, 500)],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2
+                        },
+                        {
+                            label: '출고 수량 (EA)',
+                            data: [950, 1100, 800, 1350, 1200, 1800, outboundHistory.reduce((a,b)=>a+b.qty, 170)],
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Pretendard', size: 11 } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Pretendard', size: 10 } } },
+                        x: { grid: { display: false }, ticks: { font: { family: 'Pretendard', size: 10 } } }
+                    }
+                }
+            });
+
+            // 2. Category Donut Chart
+            const ctxCat = document.getElementById('categoryChart').getContext('2d');
+            
+            // Calculate asset amounts by category
+            let catValues = { "원자재": 0, "부자재": 0, "전자부품": 0, "포장재": 0 };
+            materialsData.forEach(m => {
+                if (catValues[m.category] !== undefined) {
+                    catValues[m.category] += (m.stock * m.price);
+                }
+            });
+
+            categoryChartInstance = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(catValues),
+                    datasets: [{
+                        data: Object.values(catValues),
+                        backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#6366f1'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Pretendard', size: 10 } } }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function updateCharts() {
+            if (trendChartInstance) {
+                trendChartInstance.data.datasets[0].data[6] = inboundHistory.reduce((a,b)=>a+b.qty, 0);
+                trendChartInstance.data.datasets[1].data[6] = outboundHistory.reduce((a,b)=>a+b.qty, 0);
+                trendChartInstance.update();
+            }
+            if (categoryChartInstance) {
+                let catValues = { "원자재": 0, "부자재": 0, "전자부품": 0, "포장재": 0 };
+                materialsData.forEach(m => {
+                    if (catValues[m.category] !== undefined) {
+                        catValues[m.category] += (m.stock * m.price);
+                    }
+                });
+                categoryChartInstance.data.datasets[0].data = Object.values(catValues);
+                categoryChartInstance.update();
+            }
+        }
+    </script>
+</body>
+</html>
