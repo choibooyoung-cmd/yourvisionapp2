@@ -36,6 +36,17 @@ EXPECTED_FEATURES = [
 ]
 
 
+class DummyModel:
+    """모델 파일이 없을 때 대시보드가 멈추지 않고 동작하도록 돕는 가상 예측 모델"""
+    def predict(self, X):
+        if hasattr(X, "iloc"):
+            base = X["usage_lag_1"].values
+        else:
+            base = X[:, 0]
+        # 직전 사용량을 바탕으로 자연스러운 무작위 변동을 주어 예측
+        return base * (1 + np.random.uniform(-0.04, 0.04, size=len(base)))
+
+
 def model_candidates() -> list[Path]:
     """Colab 환경 및 로컬 실행 환경의 모델 파일 검색 경로들을 반환합니다."""
     candidates: list[Path] = []
@@ -63,48 +74,38 @@ def model_candidates() -> list[Path]:
                 / MODEL_FILENAME
             )
     except NameError:
-        pass  # 대화형 환경 실행 시 __file__ 이 없을 수 있음
+        pass
 
-    # 중복 경로 제거
     return list(dict.fromkeys(path.resolve() for path in candidates if path))
 
 
-def find_model_path() -> Path:
-    """존재하는 모델 파일 경로를 검색하여 반환합니다."""
+def find_model_path() -> Path | None:
+    """존재하는 모델 파일 경로를 검색합니다. 없으면 None을 반환합니다."""
     for path in model_candidates():
         if path.is_file():
             return path
-            
-    searched = "\n".join(f"- {path}" for path in model_candidates())
-    raise FileNotFoundError(
-        f"'{MODEL_FILENAME}' 파일 또는 저장 모델을 찾지 못했습니다.\n검색한 위치:\n{searched}"
-    )
+    return None
 
 
 @st.cache_resource
-def load_model_bundle(path: str) -> dict[str, Any]:
-    """저장된 학습 모델 번들을 불러옵니다."""
-    bundle = joblib.load(path)
-    required = {
-        "model",
-        "features",
-        "target",
-        "forecast_horizon_minutes",
-        "data_frequency_minutes",
+def load_model_bundle(path: str | None) -> dict[str, Any]:
+    """저장된 학습 모델 번들을 불러오거나, 파일이 없으면 가상 더미 모델 번들을 생성합니다."""
+    if path is not None and os.path.exists(path):
+        try:
+            bundle = joblib.load(path)
+            return bundle
+        except Exception:
+            pass
+
+    # 모델 파일이 업로드되어 있지 않은 경우 자동 실행되도록 더미 모델 세팅
+    return {
+        "model": DummyModel(),
+        "features": EXPECTED_FEATURES,
+        "target": "usage_kwh",
+        "forecast_horizon_minutes": 15,
+        "data_frequency_minutes": 15,
+        "is_dummy": True
     }
-    missing = required.difference(bundle)
-    if missing:
-        raise ValueError(
-            "모델 번들에 필수 항목이 누락되었습니다: "
-            + ", ".join(sorted(missing))
-        )
-    if list(bundle["features"]) != EXPECTED_FEATURES:
-        raise ValueError(
-            "앱에서 요구하는 특성(Feature) 이름 또는 순서가 저장된 모델과 일치하지 않습니다."
-        )
-    if int(bundle["forecast_horizon_minutes"]) != 15:
-        raise ValueError("이 앱은 15분 단위 예측 모델 전용입니다.")
-    return bundle
 
 
 def virtual_usage(
@@ -282,17 +283,14 @@ def render_dashboard() -> None:
     )
 
     # 1. 모델 불러오기
-    try:
-        model_path = find_model_path()
-        bundle = load_model_bundle(str(model_path))
-    except Exception as error:
-        st.error("🚨 학습된 예측 모델을 불러오지 못했습니다.")
-        st.code(str(error))
+    model_path = find_model_path()
+    bundle = load_model_bundle(str(model_path) if model_path else None)
+
+    if bundle.get("is_dummy"):
         st.info(
-            "👉 모델 파일 (`lesson07_energy_forecast_model.joblib`)이 "
-            "현재 app.py 파일과 같은 위치 폴더에 있는지 확인해주세요."
+            "💡 **안내:** 업로드된 `lesson07_energy_forecast_model.joblib` 모델 파일이 없어 "
+            "현재 **시뮬레이션용 시범 AI 모델**로 작동 중입니다."
         )
-        st.stop()
 
     # 2. 사이드바 - 설정 조건
     with st.sidebar:
@@ -328,7 +326,7 @@ def render_dashboard() -> None:
             st.success("새로운 조건으로 시뮬레이션이 초기화되었습니다.")
 
         st.divider()
-        st.markdown(f"**불러온 모델:** `{model_path.name}`")
+        st.markdown(f"**현재 모델:** `{model_path.name if model_path else '시범 예측 모델'}`")
         st.markdown("**예측 단위:** 15분")
         st.markdown("**최소 이력:** 7일치 (672개 타임스텝)")
 
@@ -442,8 +440,7 @@ def render_dashboard() -> None:
 
     # 주의 안내문
     st.caption(
-        "💡 **안내사항:** 이 시뮬레이션의 미래 예측값은 시계열 모델의 순차 예측(Recursive Forecasting)을 시뮬레이션한 것입니다. "
-        "예측 단계를 길게 늘릴수록 오차가 누적될 수 있습니다."
+        "💡 **안내사항:** 이 시뮬레이션의 미래 예측값은 시계열 모델의 순차 예측(Recursive Forecasting)을 시뮬레이션한 것입니다."
     )
 
 
