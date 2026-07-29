@@ -24,10 +24,9 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
-# 2. Apps Script 웹 앱 URL 설정
+# 2. Apps Script 웹 앱 URL 설정 (새 배포 URL 적용)
 # ==============================================================================
-# ⚠️ 새로 배포하신 웹 앱 URL이 있다면 아래 URL을 교체해주세요.
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx_I_E2tuyBPp8KZm7J5J9xhVYMXdusaCwlYFuop1z9dmz3wNAHDLZ7IfGDy-qvWYXe/exec"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz3sxE-InFfCaloiWzLIqZ2FGAq3w858qCng8cFB5KQIUnuw9mPvdQmY-7bUL1B_ic/exec"
 
 
 @st.cache_data(ttl=60)
@@ -38,7 +37,6 @@ def load_data_from_script(url: str):
         if response.status_code == 200:
             try:
                 data = response.json()
-                # Apps Script 내부에서 에러 리턴 시 처리
                 if isinstance(data, dict) and "status" in data and data["status"] == "error":
                     return None, f"Apps Script 에러 발생: {data.get('message', '알 수 없는 오류')}"
                 return data, None
@@ -56,7 +54,7 @@ raw_data, error_msg = load_data_from_script(WEB_APP_URL)
 # ==============================================================================
 def find_and_convert_sheet(data_dict, target_keywords):
     """
-    여러 키워드(예: ['inventory', '재고']) 중 하나라도 일치하는 시트를 찾아 Dataframe으로 변환합니다.
+    여러 키워드 중 하나라도 일치하는 시트를 찾아 Dataframe으로 변환합니다.
     """
     if not isinstance(data_dict, dict):
         return None
