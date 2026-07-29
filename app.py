@@ -26,6 +26,7 @@ with st.sidebar:
 # ==============================================================================
 # 2. Apps Script 웹 앱 URL 설정
 # ==============================================================================
+# ⚠️ 새로 배포하신 웹 앱 URL이 있다면 아래 URL을 교체해주세요.
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx_I_E2tuyBPp8KZm7J5J9xhVYMXdusaCwlYFuop1z9dmz3wNAHDLZ7IfGDy-qvWYXe/exec"
 
 
@@ -37,6 +38,9 @@ def load_data_from_script(url: str):
         if response.status_code == 200:
             try:
                 data = response.json()
+                # Apps Script 내부에서 에러 리턴 시 처리
+                if isinstance(data, dict) and "status" in data and data["status"] == "error":
+                    return None, f"Apps Script 에러 발생: {data.get('message', '알 수 없는 오류')}"
                 return data, None
             except Exception:
                 return None, "응답 데이터를 JSON 형태로 파싱하지 못했습니다."
@@ -52,7 +56,7 @@ raw_data, error_msg = load_data_from_script(WEB_APP_URL)
 # ==============================================================================
 def find_and_convert_sheet(data_dict, target_keywords):
     """
-    여러 키워드(예: ['inventory', '재고', '재고현황']) 중 하나라도 일치하는 시트를 찾아 Dataframe으로 변환합니다.
+    여러 키워드(예: ['inventory', '재고']) 중 하나라도 일치하는 시트를 찾아 Dataframe으로 변환합니다.
     """
     if not isinstance(data_dict, dict):
         return None
@@ -62,7 +66,6 @@ def find_and_convert_sheet(data_dict, target_keywords):
         for kw in target_keywords:
             if kw.lower() in clean_key:
                 if isinstance(values, list) and len(values) > 0:
-                    # 첫 행을 헤더(열 이름)로 사용
                     headers = values[0]
                     rows = values[1:]
                     return pd.DataFrame(rows, columns=headers)
@@ -75,7 +78,6 @@ inbound_df = None
 outbound_df = None
 
 if raw_data:
-    # 한글/영어 키워드 모두 대응
     inventory_df = find_and_convert_sheet(raw_data, ["inventory", "재고", "stock"])
     inbound_df = find_and_convert_sheet(raw_data, ["inbound", "입고", "in"])
     outbound_df = find_and_convert_sheet(raw_data, ["outbound", "출고", "out"])
@@ -91,9 +93,8 @@ elif raw_data:
     
     if missing_sheets:
         st.warning(f"다음 시트를 찾지 못했습니다: {', '.join(missing_sheets)}")
-        # 디버깅용: 실제 인식된 시트 이름 보여주기
-        with st.expander("🔍 현재 수신된 구글 시트 탭 목록 확인하기"):
-            st.write("구글 시트에서 받아온 실제 탭 이름들:", list(raw_data.keys()))
+        with st.expander("🔍 현재 수신된 응답 데이터 확인"):
+            st.json(raw_data)
 
 # ==============================================================================
 # 4. 대시보드 헤더 및 KPI 요약 카드
